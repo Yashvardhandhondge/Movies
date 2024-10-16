@@ -1,37 +1,32 @@
-const express = require('express');
-const app = express();
-const cookieParser = require('cookie-parser');
-const mongoose = require('mongoose');
-require('dotenv').config();
-const Port = process.env.Port;
+import express from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import http from "http";
+import mongoose from "mongoose";
+import "dotenv/config";
+import router from "./routes/index.js"
 
+const app = express();
+
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({extended:false}));
+app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-const MONGO_URL =(process.env.MONGODB_URL);
+app.use("/api/v1", router);
 
-const {mediaRoutes} = require('./routes/mediaroute');
-const {personRoutes} = require('./routes/personroute');
-const {reviewRoute} = require('./routes/reviewroutes');
-const {userRoutes} = require('./routes/userroute')
+const port = process.env.PORT || 5000;
 
-app.use('/media',mediaRoutes)
-app.use('/person',personRoutes);
-app.use('/review',reviewRoute);
-app.use('/user',userRoutes);
+const server = http.createServer(app);
 
-async function connect(){
-    try{
+mongoose.connect(process.env.MONGODB_URL).then(() => {
+  console.log("Mongodb connected");
+  server.listen(port, () => {
+    console.log(`Server is listening on port ${port}`);
+  });
+}).catch((err) => {
+  console.log({ err });
+  process.exit(1);
+});
 
-        await mongoose.connect(MONGO_URL);
-        console.log('Mongodb connected');
-    }catch(e){
-        console.error(e);
-    }
-}
-connect()
-
-app.listen(Port,()=>{
-    console.log(`App is listening to the ${Port}`)
-})
+//test

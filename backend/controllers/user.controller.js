@@ -1,118 +1,103 @@
-const { userModel } = require('../database/db');
-const jsonwebtoken = require('jsonwebtoken');
-const express = require('express');
-const bcrypt = require('bcrypt');
-require('dotenv').config();
+import userModel from "../models/user.model.js";
+import jsonwebtoken from "jsonwebtoken";
+import responseHandler from "../handlers/response.handler.js";
 
-async function signup(req, res) {
+const signup = async (req, res) => {
   try {
     const { username, password, displayName } = req.body;
 
-    const checkuser = await userModel.findOne({ username });
+    const checkUser = await userModel.findOne({ username });
 
-    if (checkuser) {
-      return res.status(400).json({ message: "User already exists" });
-    }
+    if (checkUser) return responseHandler.badrequest(res, "username already used");
 
-    const hashedpassword = await bcrypt.hash(password, 10); // Increase salt rounds to 10 for better security
-    const user = new userModel({
-      displayName,
-      username,
-      password: hashedpassword,
-    });
+    const user = new userModel();
+
+    user.displayName = displayName;
+    user.username = username;
+    user.setPassword(password);
 
     await user.save();
 
-    const token = jsonwebtoken.sign({ _id: user._id }, process.env.USER_SECRET);
+    const token = jsonwebtoken.sign(
+      { data: user.id },
+      process.env.TOKEN_SECRET,
+      { expiresIn: "24h" }
+    );
 
-    res.status(200).json({
-      message: "User created!",
-      _id: user._id,
-      user,
+    responseHandler.created(res, {
       token,
+      ...user._doc,
+      id: user.id
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Server error" });
+  } catch {
+    responseHandler.error(res);
   }
-}
+};
 
-async function signin(req, res) {
+const signin = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const user = await userModel.findOne({ username });
+    const user = await userModel.findOne({ username }).select("username password salt id displayName");
 
-    if (!user) {
-      return res.status(400).json({ message: "User not found" });
-    }
+    if (!user) return responseHandler.badrequest(res, "User not exist");
 
-    const correctpassword = await bcrypt.compare(password, user.password);
+    if (!user.validPassword(password)) return responseHandler.badrequest(res, "Wrong password");
 
-    if (!correctpassword) {
-      return res.status(400).json({ message: `Wrong Password` });
-    }
+    const token = jsonwebtoken.sign(
+      { data: user.id },
+      process.env.TOKEN_SECRET,
+      { expiresIn: "24h" }
+    );
 
-    const token = jsonwebtoken.sign({ _id: user._id }, process.env.USER_SECRET);
+    user.password = undefined;
+    user.salt = undefined;
 
-    res.status(200).json({
+    responseHandler.created(res, {
       token,
-      user,
-      _id: user._id,
+      ...user._doc,
+      id: user.id
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Server error" });
+  } catch {
+    responseHandler.error(res);
   }
-}
+};
 
-async function UpdatePassword(req, res) {
-  const userId = req.userId;
+const updatePassword = async (req, res) => {
   try {
-    const { password, newpassword } = req.body;
+    const { password, newPassword } = req.body;
 
-    const user = await userModel.findById(userId);
+    const user = await userModel.findById(req.user.id).select("password id salt");
 
-    if (!user) {
-      return res.status(400).json({ message: "You are not authorized" });
-    }
+    if (!user) return responseHandler.unauthorize(res);
 
-    const correctpassword = await bcrypt.compare(password, user.password);
+    if (!user.validPassword(password)) return responseHandler.badrequest(res, "Wrong password");
 
-    if (!correctpassword) {
-      return res.status(400).json({ message: "Wrong password" });
-    }
-
-    const newhashedpassword = await bcrypt.hash(newpassword, 10);
-
-    user.password = newhashedpassword;
+    user.setPassword(newPassword);
 
     await user.save();
 
-    res.status(200).json({ message: "User updated" });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Server error" });
+    responseHandler.ok(res);
+  } catch {
+    responseHandler.error(res);
   }
-}
+};
 
-async function getInfo(req, res) {
-  const userId = req.userId;
+const getInfo = async (req, res) => {
   try {
-    const user = await userModel.findById(userId);
+    const user = await userModel.findById(req.user.id);
 
-    if (!user) return res.status(400).json({ message: "You are not allowed" });
+    if (!user) return responseHandler.notfound(res);
 
-    res.status(200).json({ message: "You can proceed further", user });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ message: "Server error" });
+    responseHandler.ok(res, user);
+  } catch {
+    responseHandler.error(res);
   }
-}
+};
 
-module.exports = {
+export default {
   signup,
   signin,
   getInfo,
-  UpdatePassword,
+  updatePassword
 };

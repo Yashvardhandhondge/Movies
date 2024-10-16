@@ -1,27 +1,29 @@
-const {tmdbApi} = require('../Tmdb/tmdb.api')
+import responseHandler from "../handlers/response.handler.js";
+import tmdbApi from "../tmdb/tmdb.api.js";
 
-async function personDetail(req,res){
-    try{
-          const {personId} = req.params;
-          const person = await tmdbApi.personDetail({personId});
+const personDetail = async (req, res) => {
+  try {
+    const { personId } = req.params;
 
-          res.status(200).json({person})
-    }catch(e){
-       console.error(e)
-    }
-}
+    const person = await tmdbApi.personDetail({ personId });
 
-async function personMedias(req,res){
-    try{
-    const {personId} = req.params;
+    responseHandler.ok(res, person);
+  } catch {
+    responseHandler.error(res);
+  }
+};
 
-    const medias = await tmdbApi.personMedias({personId});
-    res.status(200).json({medias})
-    }catch(e){
-        console.error(e)
-    }
-}
+const personMedias = async (req, res) => {
+  try {
+    const { personId } = req.params;
 
-module.exports={
-    personMedias,personDetail
-}
+    const medias = await tmdbApi.personMedias({ personId });
+
+    responseHandler.ok(res, medias);
+  } catch {
+    responseHandler.error(res);
+  }
+};
+
+
+export default { personDetail, personMedias };
